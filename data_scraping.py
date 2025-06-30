@@ -87,6 +87,23 @@ def extract_clean_description(response):
     else:
         return "No description available."
 
+def format_meeting_time(course):
+    try:
+        mtg = course.get("meetingsFaculty", [])[0].get("meetingTime", {})
+        days = []
+        for day in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+            if mtg.get(day):
+                days.append(day.capitalize()[:3])  # e.g., 'Mon', 'Tue'
+        begin = mtg.get("beginTime")
+        end = mtg.get("endTime")
+        if begin and end:
+            time_range = f"{begin}–{end}"
+        else:
+            time_range = "Time not listed"
+        return " ".join(days), time_range
+    except Exception:
+        return "Days not listed", "Time not listed"
+
 # Build a list of cleaned course records
 course_records = []
 
@@ -95,10 +112,15 @@ for course_key in unique_courses:
     response = fetch_course_description(course, term, headers)
     description = extract_clean_description(response)
 
+    days, time_range = format_meeting_time(course)
+
     record = {
         "subject": course["subject"],
         "courseNumber": course["courseNumber"],
         "courseTitle": course.get("courseTitle", ""),
+        "scheduleType": course.get("scheduleTypeDescription", "Unknown"),
+        "meetingDays": days,
+        "meetingTime": time_range,
         "description": description
     }
     course_records.append(record)
@@ -106,7 +128,10 @@ for course_key in unique_courses:
 # Save to CSV
 csv_filename = f"ucr_courses_{term}_descriptions.csv"
 with open(csv_filename, "w", newline="", encoding="utf-8") as f:
-    writer = csv.DictWriter(f, fieldnames=["subject", "courseNumber", "courseTitle", "description"])
+    writer = csv.DictWriter(f, fieldnames=[
+        "subject", "courseNumber", "courseTitle",
+        "scheduleType", "meetingDays", "meetingTime", "description"
+    ])
     writer.writeheader()
     writer.writerows(course_records)
 
