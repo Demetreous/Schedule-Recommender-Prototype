@@ -89,20 +89,34 @@ def extract_clean_description(response):
 
 def format_meeting_time(course):
     try:
-        mtg = course.get("meetingsFaculty", [])[0].get("meetingTime", {})
-        days = []
-        for day in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
-            if mtg.get(day):
-                days.append(day.capitalize()[:3])  # e.g., 'Mon', 'Tue'
-        begin = mtg.get("beginTime")
-        end = mtg.get("endTime")
-        if begin and end:
-            time_range = f"{begin}–{end}"
-        else:
-            time_range = "Time not listed"
-        return " ".join(days), time_range
+        meeting_blocks = []
+        for mtg_faculty in course.get("meetingsFaculty", []):
+            mtg = mtg_faculty.get("meetingTime", {})
+            if not mtg:
+                continue
+
+            days = []
+            for day in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+                if mtg.get(day):
+                    days.append(day.capitalize()[:3])  # e.g. 'Mon'
+
+            begin = mtg.get("beginTime")
+            end = mtg.get("endTime")
+            if begin and end:
+                time_range = f"{begin}–{end}"
+            else:
+                time_range = "Time not listed"
+
+            meeting_str = f"{' '.join(days)} {time_range}".strip()
+            meeting_blocks.append(meeting_str)
+
+        if not meeting_blocks:
+            return "Days/Times not listed", ""
+
+        return "; ".join(meeting_blocks), ""  # return full meeting schedule in one field
+
     except Exception:
-        return "Days not listed", "Time not listed"
+        return "Days/Times not listed", ""
 
 # Build a list of cleaned course records
 course_records = []
@@ -112,15 +126,15 @@ for course_key in unique_courses:
     response = fetch_course_description(course, term, headers)
     description = extract_clean_description(response)
 
-    days, time_range = format_meeting_time(course)
+    meeting_days, meeting_time = format_meeting_time(course)
 
     record = {
         "subject": course["subject"],
         "courseNumber": course["courseNumber"],
         "courseTitle": course.get("courseTitle", ""),
         "scheduleType": course.get("scheduleTypeDescription", "Unknown"),
-        "meetingDays": days,
-        "meetingTime": time_range,
+        "meetingDays": meeting_days,
+        "meetingTime": meeting_time,
         "description": description
     }
     course_records.append(record)
